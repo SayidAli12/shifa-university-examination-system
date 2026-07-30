@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserDoc() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Case-insensitive role check — matches "admin", "Admin", "ADMIN"
+    function isAdmin() {
+      return hasUserDoc() &&
+             ('role' in userDoc().data) &&
+             userDoc().data.role.toLower() == "admin" &&
+             ('status' in userDoc().data) &&
+             userDoc().data.status == "Active";
+    }
+
+    // Case-insensitive role check — matches "teacher", "Teacher", "TEACHER"
+    function isTeacher() {
+      return hasUserDoc() &&
+             ('role' in userDoc().data) &&
+             userDoc().data.role.toLower() == "teacher" &&
+             ('status' in userDoc().data) &&
+             userDoc().data.status == "Active";
+    }
+
+    match /users/{userId} {
+      // Any signed-in user can read user documents
+      allow read: if signedIn();
+
+      // Admin can write (create, update, delete) any user document
+      allow write: if isAdmin();
+
+      // A newly created user can write their OWN profile document only
+      allow create: if signedIn() && request.auth.uid == userId;
+    }
+
+    // All other collections: admin full access, teacher read/write
+    match /{document=**} {
+      allow read, write: if isAdmin() || isTeacher();
+    }
+  }
+}
