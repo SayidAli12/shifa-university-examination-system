@@ -29,41 +29,63 @@ import {
   Crown,
   Key
 } from 'lucide-react';
-import { 
-  createFirebaseUser, 
-  apiCreateUser, 
-  apiUpdateUser, 
-  apiToggleUserStatus, 
-  apiDeleteUser, 
-  apiResetPassword 
+import {
+  createFirebaseUser,
+  apiCreateUser,
+  apiUpdateUser,
+  apiToggleUserStatus,
+  apiDeleteUser,
+  apiResetPassword
 } from '../../firebase/auth';
 import { setDocumentWithId, updateDocument, deleteDocument } from '../../firebase/firestoreService';
 
 // ── Field validation ──────────────────────────────────────────────────────────
 const validateUserForm = ({ name, email, password, role, status }, isNew) => {
   const errors = {};
-  if (!name.trim())                              errors.name     = 'Full name is required.';
-  else if (name.trim().length < 2)               errors.name     = 'Name must be at least 2 characters.';
-  if (!email.trim())                             errors.email    = 'Email address is required.';
+  if (!name.trim()) errors.name = 'Full name is required.';
+  else if (name.trim().length < 2) errors.name = 'Name must be at least 2 characters.';
+  if (!email.trim()) errors.email = 'Email address is required.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Enter a valid email address.';
   if (isNew) {
-    if (!password)                               errors.password = 'Password is required.';
-    else if (password.length < 6)               errors.password = 'Password must be at least 6 characters.';
+    if (!password) errors.password = 'Password is required.';
+    else if (password.length < 6) errors.password = 'Password must be at least 6 characters.';
   }
-  if (!role)                                     errors.role     = 'Please select a role.';
-  if (!status)                                   errors.status   = 'Please select a status.';
+  if (!role) errors.role = 'Please select a role.';
+  if (!status) errors.status = 'Please select a status.';
   return errors;
 };
 
 const EMPTY_FORM = { name: '', email: '', password: '', role: '', status: 'Active' };
+const formatDate = (date) => {
+  if (!date) return '';
+
+  try {
+    if (date?.toDate) {
+      return date.toDate().toLocaleDateString();
+    }
+
+    if (date instanceof Date) {
+      return date.toLocaleDateString();
+    }
+
+    const parsed = new Date(date);
+
+    if (isNaN(parsed.getTime())) {
+      return '';
+    }
+
+    return parsed.toLocaleDateString();
+  } catch {
+    return '';
+  }
+};
 
 // ── Role badge ────────────────────────────────────────────────────────────────
 const RoleBadge = ({ role }) => (
-  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${
-    role === 'admin' || role === 'Admin'
-      ? 'bg-red-50 text-[#C62828] border-red-200'
-      : 'bg-blue-50 text-blue-800 border-blue-200'
-  }`}>
+  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${role === 'admin' || role === 'Admin'
+    ? 'bg-red-50 text-[#C62828] border-red-200'
+    : 'bg-blue-50 text-blue-800 border-blue-200'
+    }`}>
     {role === 'admin' || role === 'Admin' ? <Crown className="w-3 h-3" /> : <UserIcon className="w-3 h-3" />}
     {role}
   </span>
@@ -82,9 +104,8 @@ const PasswordInput = ({ value, onChange, error, label = 'Password', placeholder
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          className={`w-full pl-9 pr-10 py-2 text-sm border rounded-lg outline-none transition-colors focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] ${
-            error ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
-          }`}
+          className={`w-full pl-9 pr-10 py-2 text-sm border rounded-lg outline-none transition-colors focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] ${error ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
+            }`}
         />
         <button
           type="button"
@@ -130,21 +151,21 @@ export const UserList = () => {
   const { usersList, updateUserStatus } = useData();
 
   // ── UI state ────────────────────────────────────────────────────────────────
-  const [searchTerm,   setSearchTerm]   = useState('');
-  const [roleFilter,   setRoleFilter]   = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [toast,        setToast]        = useState(null);
-  const [isSaving,     setIsSaving]     = useState(false);
+  const [toast, setToast] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // ── Add modal ────────────────────────────────────────────────────────────────
-  const [showAddModal,  setShowAddModal]  = useState(false);
-  const [addForm,       setAddForm]       = useState(EMPTY_FORM);
-  const [addErrors,     setAddErrors]     = useState({});
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState(EMPTY_FORM);
+  const [addErrors, setAddErrors] = useState({});
 
   // ── Edit modal ───────────────────────────────────────────────────────────────
-  const [editTarget,   setEditTarget]   = useState(null); // full user row
-  const [editForm,     setEditForm]     = useState(EMPTY_FORM);
-  const [editErrors,   setEditErrors]   = useState({});
+  const [editTarget, setEditTarget] = useState(null); // full user row
+  const [editForm, setEditForm] = useState(EMPTY_FORM);
+  const [editErrors, setEditErrors] = useState({});
 
   // ── Delete confirmation ───────────────────────────────────────────────────────
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -156,19 +177,19 @@ export const UserList = () => {
 
   // ── Derived stats ─────────────────────────────────────────────────────────────
   const stats = useMemo(() => ({
-    total:    usersList.length,
-    admins:   usersList.filter(u => u.role?.toLowerCase() === 'admin').length,
+    total: usersList.length,
+    admins: usersList.filter(u => u.role?.toLowerCase() === 'admin').length,
     teachers: usersList.filter(u => u.role?.toLowerCase() === 'teacher').length,
-    active:   usersList.filter(u => u.status === 'Active').length,
+    active: usersList.filter(u => u.status === 'Active').length,
     inactive: usersList.filter(u => u.status === 'Inactive').length,
   }), [usersList]);
 
   // ── Filtered list ─────────────────────────────────────────────────────────────
   const filteredUsers = useMemo(() => usersList.filter(user => {
     const matchSearch =
-      (user.name  || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (user.email || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchRole   = roleFilter   ? user.role?.toLowerCase()  === roleFilter.toLowerCase()  : true;
+    const matchRole = roleFilter ? user.role?.toLowerCase() === roleFilter.toLowerCase() : true;
     const matchStatus = statusFilter ? user.status?.toLowerCase() === statusFilter.toLowerCase() : true;
     return matchSearch && matchRole && matchStatus;
   }), [usersList, searchTerm, roleFilter, statusFilter]);
@@ -223,11 +244,11 @@ export const UserList = () => {
   const handleOpenEdit = (user) => {
     setEditTarget(user);
     setEditForm({
-      name:     user.name   || '',
-      email:    user.email  || '',
+      name: user.name || '',
+      email: user.email || '',
       password: '',
-      role:     user.role   || '',
-      status:   user.status || 'Active',
+      role: user.role || '',
+      status: user.status || 'Active',
     });
     setEditErrors({});
   };
@@ -354,11 +375,11 @@ export const UserList = () => {
 
       {/* ── Stats Row ── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <StatCard label="Total Users"  value={stats.total}    icon={Users}     color="border-slate-200" />
-        <StatCard label="Admins"       value={stats.admins}   icon={Crown}     color="border-red-200"   />
-        <StatCard label="Teachers"     value={stats.teachers} icon={UserIcon}  color="border-blue-200"  />
-        <StatCard label="Active"       value={stats.active}   icon={UserCheck} color="border-emerald-200" />
-        <StatCard label="Inactive"     value={stats.inactive} icon={UserX}     color="border-amber-200" />
+        <StatCard label="Total Users" value={stats.total} icon={Users} color="border-slate-200" />
+        <StatCard label="Admins" value={stats.admins} icon={Crown} color="border-red-200" />
+        <StatCard label="Teachers" value={stats.teachers} icon={UserIcon} color="border-blue-200" />
+        <StatCard label="Active" value={stats.active} icon={UserCheck} color="border-emerald-200" />
+        <StatCard label="Inactive" value={stats.inactive} icon={UserX} color="border-amber-200" />
       </div>
 
       {/* ── Filter Bar ── */}
@@ -457,11 +478,10 @@ export const UserList = () => {
                             onClick={() => handleToggleStatus(user)}
                             disabled={isSelf}
                             title={user.status === 'Active' ? 'Deactivate user' : 'Activate user'}
-                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                              user.status === 'Active'
-                                ? 'text-amber-800 bg-amber-50 border-amber-200 hover:bg-amber-100'
-                                : 'text-emerald-800 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
-                            }`}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${user.status === 'Active'
+                              ? 'text-amber-800 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                              : 'text-emerald-800 bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                              }`}
                           >
                             {user.status === 'Active'
                               ? <><XCircle className="w-3.5 h-3.5" />Deactivate</>
@@ -534,9 +554,8 @@ export const UserList = () => {
               value={addForm.name}
               onChange={e => handleAddChange('name', e.target.value)}
               placeholder="e.g. Dr. Sarah Ahmed"
-              className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] transition-colors ${
-                addErrors.name ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
-              }`}
+              className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] transition-colors ${addErrors.name ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
+                }`}
             />
           </Field>
 
@@ -547,9 +566,8 @@ export const UserList = () => {
               value={addForm.email}
               onChange={e => handleAddChange('email', e.target.value)}
               placeholder="e.g. sarah.ahmed@shifa.edu.pk"
-              className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] transition-colors ${
-                addErrors.email ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
-              }`}
+              className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] transition-colors ${addErrors.email ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
+                }`}
             />
           </Field>
 
@@ -568,9 +586,8 @@ export const UserList = () => {
               <select
                 value={addForm.role}
                 onChange={e => handleAddChange('role', e.target.value)}
-                className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] bg-white transition-colors ${
-                  addErrors.role ? 'border-red-400 bg-red-50' : 'border-slate-300'
-                }`}
+                className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] bg-white transition-colors ${addErrors.role ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                  }`}
               >
                 <option value="">Select role...</option>
                 <option value="Admin">Admin</option>
@@ -628,9 +645,8 @@ export const UserList = () => {
               value={editForm.name}
               onChange={e => handleEditChange('name', e.target.value)}
               placeholder="Full name"
-              className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] transition-colors ${
-                editErrors.name ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
-              }`}
+              className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] transition-colors ${editErrors.name ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'
+                }`}
             />
           </Field>
 
@@ -651,9 +667,8 @@ export const UserList = () => {
               <select
                 value={editForm.role}
                 onChange={e => handleEditChange('role', e.target.value)}
-                className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] bg-white transition-colors ${
-                  editErrors.role ? 'border-red-400 bg-red-50' : 'border-slate-300'
-                }`}
+                className={`w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-[#C62828]/20 focus:border-[#C62828] bg-white transition-colors ${editErrors.role ? 'border-red-400 bg-red-50' : 'border-slate-300'
+                  }`}
               >
                 <option value="">Select role...</option>
                 <option value="Admin">Admin</option>
